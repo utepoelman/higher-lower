@@ -1,0 +1,515 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Higher-Lower Card Challenge</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;800&family=JetBrains+Mono:wght@500;700;800&display=swap" rel="stylesheet">
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Outfit', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    },
+                    colors: {
+                        casino: {
+                            bg: '#0F172A',
+                            card: '#1E293B',
+                            border: '#334155',
+                            accent: '#3B82F6',
+                            gold: '#F59E0B'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        html, body {
+            height: 100%;
+            overflow: hidden;
+            background-color: #0F172A;
+            color: #F8FAFC;
+            user-select: none;
+        }
+
+        .perspective-1000 { perspective: 1000px; }
+        .card-inner {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            text-align: center;
+            transition: transform 0.6s cubic-bezier(0.4, 0.2, 0.2, 1);
+            transform-style: preserve-3d;
+        }
+        .card-inner.flipped { transform: rotateY(180deg); }
+        .card-front, .card-back {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            backface-visibility: hidden;
+            border-radius: 1rem;
+        }
+        .card-back { transform: rotateY(180deg); }
+
+        .glow-gold { box-shadow: 0 0 15px rgba(245, 158, 11, 0.4); }
+        .glow-blue { box-shadow: 0 0 15px rgba(59, 130, 246, 0.4); }
+        
+        .custom-scrollbar::-webkit-scrollbar { height: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: rgba(30, 41, 59, 0.8); border-radius: 10px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #475569; border-radius: 10px; }
+        
+        @keyframes subtle-pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.95; transform: scale(0.98); }
+        }
+        .animate-subtle { animation: subtle-pulse 2s infinite ease-in-out; }
+    </style>
+</head>
+<body class="h-screen w-screen flex flex-col p-2 sm:p-4 font-sans antialiased bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-800 via-casino-bg to-black text-white">
+
+    <header class="w-full max-w-6xl mx-auto flex items-center justify-between bg-casino-card/90 backdrop-blur-md px-4 py-2.5 rounded-xl border border-casino-border shadow-md shrink-0 z-10">
+        <div class="flex items-center space-x-3">
+            <div class="w-8 h-8 rounded-lg bg-gradient-to-tr from-blue-600 to-indigo-500 flex items-center justify-center font-mono font-black text-white text-sm shadow">
+                100
+            </div>
+            <div>
+                <h1 class="text-sm sm:text-lg font-extrabold tracking-tight text-white leading-none">HIGHER / LOWER</h1>
+            </div>
+        </div>
+
+        <div class="flex items-center space-x-3">
+            <!-- Fullscreen Button -->
+            <button id="fullscreen-btn" class="px-3 py-1.5 rounded-lg bg-slate-800 border border-slate-700 text-slate-300 hover:text-white transition-colors text-xs font-semibold flex items-center space-x-2">
+                <i id="fullscreen-icon" class="fa-solid fa-expand text-casino-accent"></i>
+                <span id="fullscreen-text" class="hidden sm:inline">Fullscreen</span>
+            </button>
+
+            <!-- Bankroll Display -->
+            <div class="bg-slate-900 border border-slate-700 px-3 py-1.5 rounded-lg flex items-center space-x-2">
+                <i class="fa-solid fa-wallet text-casino-gold text-sm"></i>
+                <div class="flex flex-col">
+                    <span class="text-[9px] text-slate-400 font-bold uppercase tracking-widest leading-none">Bankroll</span>
+                    <span id="bankroll-display" class="font-mono text-sm font-bold text-casino-gold leading-none">$100.00</span>
+                </div>
+            </div>
+            
+            <button id="reset-bank-btn" title="Reset Bankroll" class="w-8 h-8 rounded-lg bg-slate-800 border border-slate-700 flex items-center justify-center text-slate-400 hover:text-rose-400 transition-colors">
+                <i class="fa-solid fa-rotate-right"></i>
+            </button>
+        </div>
+    </header>
+
+    <main class="w-full max-w-6xl mx-auto flex-1 flex flex-col sm:flex-row gap-3 mt-3 overflow-hidden">
+        
+        <!-- Left Column: Vertical Progression Ladder -->
+        <div class="w-full sm:w-1/3 md:w-1/4 bg-casino-card/90 border border-casino-border rounded-xl p-2 sm:p-3 flex flex-col justify-between shadow-lg shrink-0">
+            <div class="flex items-center justify-between pb-2 border-b border-slate-700">
+                <span class="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
+                    <i class="fa-solid fa-stairs text-casino-accent"></i> Payout Ladder
+                </span>
+                <span class="text-[10px] font-mono text-slate-400">Stake: <span class="text-white font-bold">$2.00</span></span>
+            </div>
+
+            <div id="vertical-payout-ladder" class="flex-1 flex flex-col justify-evenly py-1 gap-1">
+                <!-- Dynamically populated 9-step ladder -->
+            </div>
+
+            <div class="pt-2 border-t border-slate-700 flex flex-col">
+                <span class="text-[10px] text-slate-400 uppercase font-bold tracking-wider text-center">Current Target</span>
+                <span id="next-payout-text" class="font-mono text-lg font-extrabold text-casino-gold text-center">$2.00</span>
+            </div>
+        </div>
+
+        <!-- Right Column: Card Arena and Controls -->
+        <div class="flex-1 flex flex-col gap-3 min-h-0 overflow-hidden">
+            
+            <!-- Status Message -->
+            <div id="status-banner" class="w-full bg-slate-800/80 border border-slate-700 rounded-xl px-4 py-2.5 text-center shrink-0">
+                <p id="status-text" class="text-sm font-semibold text-slate-200">
+                    Place your <span class="text-casino-gold font-bold">$2.00 stake</span> to start!
+                </p>
+            </div>
+
+            <!-- Card Display Center -->
+            <div class="flex-1 bg-slate-900/50 border border-casino-border rounded-xl p-4 flex flex-col justify-center items-center shadow-inner relative overflow-hidden">
+                <div class="absolute top-3 left-3 right-3 flex justify-between items-center text-[11px] text-slate-400 font-mono">
+                    <span class="flex items-center gap-1"><i class="fa-solid fa-layer-group text-casino-accent"></i> Deck: 1–100 (No Ties)</span>
+                    <span id="streak-counter-badge" class="font-bold text-casino-gold bg-slate-800 px-2 py-0.5 rounded-full border border-slate-700">Step 0 / 9</span>
+                </div>
+
+                <div class="perspective-1000 w-40 h-56 sm:w-48 sm:h-64 my-auto">
+                    <div id="main-card" class="card-inner shadow-2xl">
+                        <!-- Front (Face Down) -->
+                        <div class="card-front bg-gradient-to-b from-slate-700 to-slate-900 border-2 border-slate-600 flex flex-col justify-between p-4 shadow-xl">
+                            <div class="w-full flex justify-between items-center text-slate-400 text-xs font-mono">
+                                <i class="fa-solid fa-crown"></i>
+                                <span>HL</span>
+                            </div>
+                            <div class="flex flex-col items-center justify-center space-y-2">
+                                <i class="fa-solid fa-question text-5xl text-slate-500"></i>
+                            </div>
+                            <div class="text-right text-slate-400 text-xs font-mono">100</div>
+                        </div>
+
+                        <!-- Back (Face Up) -->
+                        <div class="card-back bg-gradient-to-br from-slate-800 via-casino-card to-slate-800 border-2 border-blue-500 flex flex-col justify-between p-4 shadow-xl glow-blue">
+                            <div class="flex justify-between items-center">
+                                <span id="card-corner-top" class="font-mono text-xl font-bold text-blue-400">--</span>
+                                <i class="fa-solid fa-diamond text-blue-500/50 text-sm"></i>
+                            </div>
+                            <div class="flex flex-col items-center justify-center">
+                                <span id="card-number" class="text-7xl font-extrabold font-mono text-white tracking-tighter">--</span>
+                            </div>
+                            <div class="flex justify-between items-center">
+                                <i class="fa-solid fa-diamond text-blue-500/50 text-sm"></i>
+                                <span id="card-corner-bottom" class="font-mono text-xl font-bold text-blue-400 rotate-180">--</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Controls block -->
+            <div class="bg-casino-card/90 border border-casino-border rounded-xl p-3 shadow-lg shrink-0 flex flex-col sm:flex-row gap-2">
+                <!-- Action Buttons -->
+                <div class="w-full sm:w-[60%] grid grid-cols-2 gap-2">
+                    <button id="higher-btn" disabled class="py-3 px-3 rounded-lg bg-slate-800 border border-slate-700 text-slate-500 font-extrabold text-sm flex items-center justify-center gap-2 transition-all cursor-not-allowed">
+                        <i class="fa-solid fa-arrow-up text-lg"></i> HIGHER
+                    </button>
+                    <button id="lower-btn" disabled class="py-3 px-3 rounded-lg bg-slate-800 border border-slate-700 text-slate-500 font-extrabold text-sm flex items-center justify-center gap-2 transition-all cursor-not-allowed">
+                        <i class="fa-solid fa-arrow-down text-lg"></i> LOWER
+                    </button>
+                </div>
+
+                <!-- Cashout & Start -->
+                <div class="w-full sm:w-[40%] grid grid-cols-2 gap-2">
+                    <button id="cashout-btn" disabled class="py-3 px-2 rounded-lg font-bold text-xs bg-slate-800 border border-slate-700 text-slate-500 cursor-not-allowed transition-all flex flex-col items-center justify-center leading-tight">
+                        <span>CASH OUT</span>
+                        <span id="cashout-val" class="text-[10px] font-mono mt-0.5">--</span>
+                    </button>
+                    <button id="start-btn" class="py-3 px-2 rounded-lg bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-extrabold text-sm shadow-md active:scale-95 transition-all flex items-center justify-center gap-1.5 border border-blue-400/50 cursor-pointer">
+                        <i class="fa-solid fa-play text-xs"></i> START
+                    </button>
+                </div>
+            </div>
+
+            <!-- History Tray -->
+            <div class="bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 shrink-0 flex items-center gap-2 h-10">
+                <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400 shrink-0">
+                    <i class="fa-solid fa-clock-rotate-left mr-1 text-casino-accent"></i> History
+                </span>
+                <div id="history-tray" class="flex-1 flex items-center gap-1.5 overflow-x-auto custom-scrollbar h-full items-center">
+                    <span class="text-[10px] text-slate-600 italic">No cards drawn.</span>
+                </div>
+                <span id="history-count" class="text-[10px] font-mono text-slate-500 shrink-0 border-l border-slate-700 pl-2">0/100</span>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        const STAKE_AMOUNT = 2.00;
+        let bankroll = 100.00;
+        
+        // 9-Step Payout Ladder
+        const PAYOUT_LADDER = [
+            { step: 0, payout: 0.00, profit: "-$2.00" },
+            { step: 1, payout: 1.00, profit: "-$1.00" },
+            { step: 2, payout: 2.00, profit: "$0.00" },
+            { step: 3, payout: 3.00, profit: "+$1.00" },
+            { step: 4, payout: 5.00, profit: "+$3.00" },
+            { step: 5, payout: 8.00, profit: "+$6.00" },
+            { step: 6, payout: 12.00, profit: "+$10.00" },
+            { step: 7, payout: 17.00, profit: "+$15.00" },
+            { step: 8, payout: 23.00, profit: "+$21.00" },
+            { step: 9, payout: 30.00, profit: "+$28.00" } // Max
+        ];
+
+        // Web Audio Synthesizer
+        class AudioFX {
+            constructor() { this.ctx = null; }
+            init() {
+                if (!this.ctx) {
+                    const AudioContext = window.AudioContext || window.webkitAudioContext;
+                    if (AudioContext) this.ctx = new AudioContext();
+                }
+            }
+            playTone(freq, type = 'sine', duration = 0.1, gainVal = 0.1) {
+                if (!this.ctx) return;
+                try {
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.type = type; osc.frequency.value = freq;
+                    gain.gain.setValueAtTime(gainVal, this.ctx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.0001, this.ctx.currentTime + duration);
+                    osc.connect(gain); gain.connect(this.ctx.destination);
+                    osc.start(); osc.stop(this.ctx.currentTime + duration);
+                } catch (e) {}
+            }
+            click() { this.playTone(600, 'sine', 0.04, 0.05); }
+            correct() { this.playTone(523.25, 'triangle', 0.1, 0.1); setTimeout(() => this.playTone(659.25, 'triangle', 0.15, 0.1), 90); }
+            cashout() { [523.25, 659.25, 783.99, 1046.50].forEach((f, i) => setTimeout(() => this.playTone(f, 'sine', 0.18, 0.1), i * 75)); }
+            loss() { this.playTone(280, 'sawtooth', 0.12, 0.1); setTimeout(() => this.playTone(180, 'sawtooth', 0.2, 0.1), 100); }
+        }
+        const audio = new AudioFX();
+
+        // Game State
+        let activeDeck = [];
+        let drawnCards = [];
+        let currentCard = null;
+        let currentStep = 0;
+        let inRound = false;
+
+        const els = {
+            bankroll: document.getElementById('bankroll-display'),
+            startBtn: document.getElementById('start-btn'),
+            higherBtn: document.getElementById('higher-btn'),
+            lowerBtn: document.getElementById('lower-btn'),
+            cashoutBtn: document.getElementById('cashout-btn'),
+            cashoutVal: document.getElementById('cashout-val'),
+            resetBtn: document.getElementById('reset-bank-btn'),
+            fullBtn: document.getElementById('fullscreen-btn'),
+            fullIcon: document.getElementById('fullscreen-icon'),
+            fullText: document.getElementById('fullscreen-text'),
+            mainCard: document.getElementById('main-card'),
+            cardNum: document.getElementById('card-number'),
+            cardTop: document.getElementById('card-corner-top'),
+            cardBot: document.getElementById('card-corner-bottom'),
+            statusBanner: document.getElementById('status-banner'),
+            statusText: document.getElementById('status-text'),
+            ladder: document.getElementById('vertical-payout-ladder'),
+            nextText: document.getElementById('next-payout-text'),
+            streakBadge: document.getElementById('streak-counter-badge'),
+            historyTray: document.getElementById('history-tray'),
+            historyCount: document.getElementById('history-count')
+        };
+
+        function initGame() {
+            renderLadder();
+            updateUI();
+            els.startBtn.addEventListener('click', handleStart);
+            els.higherBtn.addEventListener('click', () => handleGuess('HIGHER'));
+            els.lowerBtn.addEventListener('click', () => handleGuess('LOWER'));
+            els.cashoutBtn.addEventListener('click', handleCashOut);
+            els.resetBtn.addEventListener('click', () => { if (!inRound) { bankroll = 100; updateBankroll(); setStatus("Bankroll reset to $100.", "normal"); audio.click(); }});
+            els.fullBtn.addEventListener('click', toggleFullscreen);
+            document.body.addEventListener('click', () => audio.init(), { once: true });
+        }
+
+        function toggleFullscreen() {
+            audio.click();
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen().catch(()=>{});
+                els.fullIcon.className = "fa-solid fa-compress text-casino-accent";
+                els.fullText.textContent = "Exit";
+            } else {
+                document.exitFullscreen();
+                els.fullIcon.className = "fa-solid fa-expand text-casino-accent";
+                els.fullText.textContent = "Fullscreen";
+            }
+        }
+
+        function updateBankroll() {
+            els.bankroll.textContent = `$${bankroll.toFixed(2)}`;
+        }
+
+        function createDeck() {
+            return Array.from({length: 100}, (_, i) => i + 1);
+        }
+
+        function drawCard() {
+            if (activeDeck.length === 0) return null;
+            const idx = Math.floor(Math.random() * activeDeck.length);
+            const card = activeDeck.splice(idx, 1)[0];
+            drawnCards.push(card);
+            return card;
+        }
+
+        function renderLadder() {
+            els.ladder.innerHTML = '';
+            // Render top to bottom (Step 9 down to Step 1)
+            [...PAYOUT_LADDER].reverse().filter(item => item.step > 0).forEach(item => {
+                const row = document.createElement('div');
+                row.id = `step-row-${item.step}`;
+                row.className = `flex justify-between items-center px-2 py-1 rounded bg-slate-900 border border-slate-800 transition-colors duration-300`;
+                row.innerHTML = `
+                    <div class="flex items-center gap-2">
+                        <span id="step-badge-${item.step}" class="w-4 h-4 sm:w-5 sm:h-5 rounded bg-slate-800 flex items-center justify-center font-mono text-[9px] sm:text-[10px] font-bold text-slate-500">${item.step}</span>
+                        <span class="text-xs sm:text-sm font-bold font-mono text-slate-400">$${item.payout.toFixed(2)}</span>
+                    </div>
+                    <span class="text-[9px] sm:text-[10px] font-mono text-slate-500 font-semibold">${item.profit}</span>
+                `;
+                els.ladder.appendChild(row);
+            });
+        }
+
+        function updateUI() {
+            updateBankroll();
+            const currPayout = PAYOUT_LADDER[currentStep].payout;
+            els.streakBadge.textContent = `Step ${currentStep} / 9`;
+
+            if (inRound) {
+                els.startBtn.disabled = true;
+                els.startBtn.className = "py-3 px-2 rounded-lg bg-slate-800 text-slate-600 font-extrabold text-sm border border-slate-700 cursor-not-allowed flex items-center justify-center gap-1.5 opacity-70";
+                
+                els.higherBtn.disabled = false;
+                els.higherBtn.className = "py-3 px-3 rounded-lg bg-gradient-to-t from-emerald-700 to-emerald-500 hover:from-emerald-600 hover:to-emerald-400 text-white font-extrabold text-sm flex items-center justify-center gap-2 shadow-md active:scale-95 transition-all border border-emerald-400/50";
+                
+                els.lowerBtn.disabled = false;
+                els.lowerBtn.className = "py-3 px-3 rounded-lg bg-gradient-to-t from-rose-700 to-rose-500 hover:from-rose-600 hover:to-rose-400 text-white font-extrabold text-sm flex items-center justify-center gap-2 shadow-md active:scale-95 transition-all border border-rose-400/50";
+
+                const nextObj = PAYOUT_LADDER[Math.min(currentStep + 1, 9)];
+                els.nextText.textContent = `$${nextObj.payout.toFixed(2)}`;
+
+                if (currentStep > 0) {
+                    els.cashoutBtn.disabled = false;
+                    els.cashoutBtn.className = "py-2 px-2 rounded-lg font-bold text-xs bg-gradient-to-t from-amber-600 to-yellow-500 hover:from-amber-500 hover:to-yellow-400 text-slate-900 shadow-md active:scale-95 transition-all flex flex-col items-center justify-center leading-tight border border-amber-300 animate-subtle";
+                    els.cashoutVal.textContent = `$${currPayout.toFixed(2)}`;
+                    els.cashoutVal.className = "text-[10px] font-mono mt-0.5 text-slate-900 font-extrabold";
+                } else {
+                    els.cashoutBtn.disabled = true;
+                    els.cashoutBtn.className = "py-2 px-2 rounded-lg font-bold text-xs bg-slate-800 border border-slate-700 text-slate-500 cursor-not-allowed flex flex-col items-center justify-center leading-tight";
+                    els.cashoutVal.textContent = `$0.00`;
+                    els.cashoutVal.className = "text-[10px] font-mono mt-0.5 text-slate-600";
+                }
+            } else {
+                els.startBtn.disabled = false;
+                els.startBtn.className = "py-3 px-2 rounded-lg bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-extrabold text-sm shadow-md active:scale-95 transition-all flex items-center justify-center gap-1.5 border border-blue-400/50 cursor-pointer";
+                els.higherBtn.disabled = els.lowerBtn.disabled = els.cashoutBtn.disabled = true;
+                els.higherBtn.className = els.lowerBtn.className = "py-3 px-3 rounded-lg bg-slate-800 border border-slate-700 text-slate-600 font-extrabold text-sm flex items-center justify-center gap-2 cursor-not-allowed opacity-70";
+                els.cashoutBtn.className = "py-2 px-2 rounded-lg font-bold text-xs bg-slate-800 border border-slate-700 text-slate-500 cursor-not-allowed flex flex-col items-center justify-center leading-tight opacity-70";
+                els.cashoutVal.textContent = `--`;
+                els.nextText.textContent = `$2.00`;
+            }
+
+            // Update Ladder Highlighting
+            PAYOUT_LADDER.forEach(item => {
+                if(item.step === 0) return;
+                const row = document.getElementById(`step-row-${item.step}`);
+                const badge = document.getElementById(`step-badge-${item.step}`);
+                if(!row) return;
+
+                if (item.step === currentStep) {
+                    row.className = `flex justify-between items-center px-2 py-1 rounded bg-blue-900/40 border border-blue-500 transition-colors duration-300 glow-blue`;
+                    row.querySelector('span:nth-child(2)').className = "text-xs sm:text-sm font-bold font-mono text-white";
+                    badge.className = "w-4 h-4 sm:w-5 sm:h-5 rounded bg-blue-600 flex items-center justify-center font-mono text-[9px] sm:text-[10px] font-bold text-white shadow";
+                } else if (item.step < currentStep) {
+                    row.className = `flex justify-between items-center px-2 py-1 rounded bg-emerald-900/20 border border-emerald-700/50 transition-colors duration-300 opacity-80`;
+                    row.querySelector('span:nth-child(2)').className = "text-xs sm:text-sm font-bold font-mono text-emerald-400";
+                    badge.className = "w-4 h-4 sm:w-5 sm:h-5 rounded bg-emerald-800 flex items-center justify-center font-mono text-[9px] sm:text-[10px] font-bold text-emerald-300";
+                } else {
+                    row.className = `flex justify-between items-center px-2 py-1 rounded bg-slate-900 border border-slate-800 transition-colors duration-300 opacity-60`;
+                    row.querySelector('span:nth-child(2)').className = "text-xs sm:text-sm font-bold font-mono text-slate-500";
+                    badge.className = "w-4 h-4 sm:w-5 sm:h-5 rounded bg-slate-800 flex items-center justify-center font-mono text-[9px] sm:text-[10px] font-bold text-slate-600";
+                }
+            });
+
+            // Update History
+            if (drawnCards.length === 0) {
+                els.historyTray.innerHTML = `<span class="text-[10px] text-slate-600 italic">No cards drawn.</span>`;
+            } else {
+                els.historyTray.innerHTML = drawnCards.map((c, i) => {
+                    const isLast = i === drawnCards.length - 1;
+                    return `<span class="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold shrink-0 ${isLast ? 'bg-blue-600 text-white border border-blue-400 shadow-md' : 'bg-slate-800 text-slate-400 border border-slate-700'}">${c}</span>`;
+                }).join('');
+                els.historyTray.scrollLeft = els.historyTray.scrollWidth;
+            }
+            els.historyCount.textContent = `${drawnCards.length}/100`;
+        }
+
+        function setStatus(msg, type = "normal") {
+            els.statusText.innerHTML = msg;
+            els.statusBanner.className = `w-full rounded-xl px-4 py-2.5 text-center shrink-0 border transition-all duration-300 ${
+                type === "win" ? "bg-emerald-900/40 border-emerald-500 text-emerald-100" :
+                type === "loss" ? "bg-rose-900/40 border-rose-500 text-rose-100" :
+                type === "cashout" ? "bg-amber-900/40 border-amber-500 text-amber-100 glow-gold" :
+                "bg-slate-800/80 border-slate-700 text-slate-200"
+            }`;
+        }
+
+        function handleStart() {
+            if (inRound) return;
+            if (bankroll < STAKE_AMOUNT) {
+                setStatus("Insufficient funds. Reset bankroll.", "loss"); audio.loss(); return;
+            }
+            bankroll -= STAKE_AMOUNT;
+            activeDeck = createDeck();
+            drawnCards = [];
+            currentStep = 0;
+            inRound = true;
+            audio.click();
+
+            els.mainCard.classList.remove('flipped');
+            updateUI();
+
+            setTimeout(() => {
+                currentCard = drawCard();
+                els.cardNum.textContent = currentCard;
+                els.cardTop.textContent = currentCard;
+                els.cardBot.textContent = currentCard;
+                els.mainCard.classList.add('flipped');
+                setStatus(`Round started ($2.00 stake). Card is <b class="text-white">${currentCard}</b>. Next card Higher or Lower?`, "normal");
+                updateUI();
+            }, 300);
+        }
+
+        function handleGuess(prediction) {
+            if (!inRound || !currentCard) return;
+            audio.click();
+            els.higherBtn.disabled = true; els.lowerBtn.disabled = true;
+            const prevCard = currentCard;
+            els.mainCard.classList.remove('flipped');
+
+            setTimeout(() => {
+                currentCard = drawCard();
+                els.cardNum.textContent = currentCard;
+                els.cardTop.textContent = currentCard;
+                els.cardBot.textContent = currentCard;
+                els.mainCard.classList.add('flipped');
+
+                const correct = (prediction === 'HIGHER' && currentCard > prevCard) || (prediction === 'LOWER' && currentCard < prevCard);
+
+                if (correct) {
+                    currentStep++;
+                    const payout = PAYOUT_LADDER[currentStep].payout;
+                    
+                    if (currentStep === 9) {
+                        audio.cashout();
+                        bankroll += payout;
+                        inRound = false;
+                        setStatus(`🎉 MAX STEP 9 REACHED! You won $${payout.toFixed(2)}!`, "win");
+                    } else {
+                        audio.correct();
+                        setStatus(`Correct! Card is ${currentCard}. Unlocked $${payout.toFixed(2)}. Continue or Cash Out?`, "win");
+                    }
+                } else {
+                    audio.loss();
+                    inRound = false;
+                    setStatus(`Wrong! Next card was ${currentCard}. You lose the round.`, "loss");
+                }
+                updateUI();
+            }, 400);
+        }
+
+        function handleCashOut() {
+            if (!inRound || currentStep === 0) return;
+            const payout = PAYOUT_LADDER[currentStep].payout;
+            bankroll += payout;
+            inRound = false;
+            audio.cashout();
+            setStatus(`💰 Cashed out! $${payout.toFixed(2)} added to your bankroll.`, "cashout");
+            updateUI();
+        }
+
+        window.addEventListener('DOMContentLoaded', initGame);
+    </script>
+</body>
+</html>
